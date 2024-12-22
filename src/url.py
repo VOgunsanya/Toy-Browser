@@ -1,5 +1,8 @@
 import socket
 import ssl
+REQUEST_HEADERS= {"Connection": "close",
+                   "User-Agent": "Victor"}
+SUPPORTED_SCHEMES = {"http",'https','file','data','view-source'}
 class URL:
     def __init__(self,url):
         """
@@ -11,8 +14,10 @@ class URL:
             String containing a typical website url, which can contain varous schemes and hosts
         """
         # Breaking down URL into defining parts
-        self.scheme, url = url.split("://",1)
-        assert self.scheme in {"http", "https"}
+        self.scheme, url = url.split(":",1)
+        assert self.scheme in SUPPORTED_SCHEMES
+        if self.scheme == "file":
+            self.file_path = url[2:]
         if self.scheme == "http":
             self.port = 80
         elif self.scheme == "https":
@@ -40,10 +45,16 @@ class URL:
             ctx = ssl.create_default_context()
             s = ctx.wrap_socket(s, server_hostname=self.host)
         # Build a request, \r\n are newlines to satisfy http protocol
-        request = f"GET {self.path} HTTP/1.0/\r\n"
+        request = f"GET {self.path} HTTP/1.0\r\n"
         request += f"Host: {self.host}\r\n"
+        for header,value in REQUEST_HEADERS.items():
+            request += f"{header}: {value}\r\n"
         request += "\r\n"
-        # Conversion of request string to bytes
+        # request = "GET {} HTTP/1.0\r\n".format(self.path)
+        # request += "Host: {}\r\n".format(self.host)
+        # request += "\r\n"
+        print(request)
+        # Conversion of rezquest string to bytes
         s.send(request.encode("utf8"))
         # Break down the subsequent response
         response = s.makefile('r', encoding='utf8', newline="\r\n")
@@ -62,6 +73,13 @@ class URL:
         # Remaining part of response is its body
         content = response.read()
         s.close()
+        return content
+    def open_file(self):
+        '''
+        Opens a local file on the computer, used for the file scheme
+        '''
+        with open(self.file_path,'r') as f:
+            content = f.read()
         return content
 def show(body):
     """
@@ -88,9 +106,15 @@ def load(url):
     Parameters
     url: A URL Object
     """
-    body = url.request_response()
+    if url.scheme == 'http' or url.scheme == 'https':
+        body = url.request_response()
+    if url.scheme == "file":
+        body = url.open_file()
     show(body)
 
 if __name__ == "__main__":
     import sys
-    load(URL(sys.argv[1]))
+    if len(sys.argv) < 2:
+        load(URL("file:///mnt/c/Users/user/Desktop/MIT/repos/Toy-Browser/src/yadda.html"))
+    else:
+        load(URL(sys.argv[1]))
