@@ -2,7 +2,8 @@ import socket
 import ssl
 REQUEST_HEADERS= {"Connection": "close",
                    "User-Agent": "Victor"}
-SUPPORTED_SCHEMES = {"http",'https','file','data','view-source'}
+# Data not yet implemented
+SUPPORTED_SCHEMES = {"http",'https','file','view-source'}
 class URL:
     def __init__(self,url):
         """
@@ -15,10 +16,12 @@ class URL:
         """
         # Breaking down URL into defining parts
         self.scheme, url = url.split(":",1)
+        #Remove leading /
+        url = url[2:]
         assert self.scheme in SUPPORTED_SCHEMES
         if self.scheme == "file":
-            self.file_path = url[2:]
-        if self.scheme == "http":
+            self.file_path = url
+        elif self.scheme == "http":
             self.port = 80
         elif self.scheme == "https":
             self.port = 443
@@ -40,6 +43,8 @@ class URL:
             type = socket.SOCK_STREAM,
             proto= socket.IPPROTO_TCP
         )
+        print(self.host)
+        print(self.port)
         s.connect((self.host,self.port))
         if self.scheme == "https":
             ctx = ssl.create_default_context()
@@ -90,15 +95,47 @@ def show(body):
     Body: String
         Content of an http response
     """
+    # Dictionary mapping HTML entities to their corresponding characters
+    html_entities = {
+        '&lt;': '<',
+        '&gt;': '>',
+        '&amp;': '&',
+        '&quot;': '"',
+        '&apos;': "'"
+    }
+    # To print entities, we will jump around the giant body response string
     in_tag = False
-    for c in body:
-        if c == "<":
+    i = 0
+    while i < len(body):
+        if body[i] == "&":
+            # Look ahead for HTML entities and replace them
+            if body[i:i+4] == '&lt;':
+                print('<', end="")
+                i += 4
+            elif body[i:i+4] == '&gt;':
+                print('>', end="")
+                i += 4
+            elif body[i:i+5] == '&amp;':
+                print('&', end="")
+                i += 5
+            elif body[i:i+6] == '&quot;':
+                print('"', end="")
+                i += 6
+            elif body[i:i+6] == '&apos;':
+                print("'", end="")
+                i += 6
+            else:
+                # Print the regular ampersand
+                print(body[i], end="")
+                i += 1
+        if body[i] == "<":
             in_tag = True
-        elif c ==">":
+        elif body[i] == ">":
             in_tag = False
         elif not in_tag:
-            # Don't want a newline to print after a character
-            print(c, end="")
+            # Print characters inside tags as they are
+            print(body[i], end="")
+        i += 1
 def load(url):
     """
     Loads a webpage by initializing an http request
